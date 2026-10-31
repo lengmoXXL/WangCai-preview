@@ -60,6 +60,36 @@ test('a previewed page is rendered, and a file it cannot read says so', { timeou
   assert.deepEqual(errors, []);
 }));
 
+test('a page fills the tab from its left edge, and the divider on its right narrows it', { timeout: 180000 }, () => withWindow('wangcai-preview-width', lists, async ({ home, page, errors }) => {
+  const written = join(home, 'wide.md');
+  writeFileSync(written, `# Wide title\n\n${'body '.repeat(200)}\n`);
+  await openPreview(page);
+  await send(page, { type: 'file', machine, path: written });
+  await panel(page).getByRole('heading', { name: 'Wide title' }).waitFor();
+  const row = panel(page).locator('.preview-page-row');
+  const article = panel(page).locator('.preview-markdown');
+  const divider = panel(page).locator('.preview-divider');
+  // Until the divider moves, the page takes the whole tab, flush with its left edge.
+  await until(async () => Math.abs((await article.boundingBox()).width + (await divider.boundingBox()).width - (await row.boundingBox()).width) < 2);
+  const startBox = await article.boundingBox();
+  assert.ok(Math.abs(startBox.x - (await row.boundingBox()).x) < 1);
+  // Dragged in, the page is narrower and still starts where it did, and the share it now takes is what is kept.
+  const dividerBox = await divider.boundingBox();
+  await page.mouse.move(dividerBox.x + dividerBox.width / 2, dividerBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(dividerBox.x - 200, dividerBox.y + 20, { steps: 4 });
+  await page.mouse.up();
+  await until(async () => (await article.boundingBox()).width < startBox.width - 150);
+  assert.ok(Math.abs((await article.boundingBox()).x - startBox.x) < 1);
+  const share = await page.evaluate(() => {
+    const article = document.querySelector('.preview-markdown');
+    const room = document.querySelector('.preview-page-row').clientWidth - document.querySelector('.preview-divider').offsetWidth;
+    return { kept: Number(localStorage.getItem('preview-page-width')), drawn: article.offsetWidth / room };
+  });
+  assert.ok(Math.abs(share.kept - share.drawn) < 0.01);
+  assert.deepEqual(errors, []);
+}));
+
 test('a window with two workspaces keeps a preview of its own in each', { timeout: 180000 }, () => withWindow('wangcai-preview-tabs', lists, async ({ home, page, errors }) => {
   const first = join(home, 'first.md');
   const second = join(home, 'second.md');

@@ -119,11 +119,75 @@ function Page({ shown }: { shown: Shown }) {
       : kind === 'other' ? <div className="preview-message">{noPreview}</div>
       : shown.text === undefined ? <div className="preview-message">正在读取…</div>
       : kind === 'image' ? <div className="preview-image"><img src={shown.text} alt={file.path} /></div>
-      : kind === 'markdown' ? <article className="preview-markdown">
-        <Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ a: ({ children }) => <span>{children}</span> }}>{shown.text}</Markdown>
-      </article>
+      : kind === 'markdown' ? <MarkdownPage text={shown.text} />
       : <HtmlFrame text={shown.text} />}
   </section>;
+}
+
+// The width a page takes is kept as the share of the tab it filled, so a tab that is widened or narrowed later keeps the
+// line the reader chose.
+const widthKey = 'preview-page-width';
+const minPageWidth = 200;
+const keptShare = () => {
+  const kept = Number(localStorage.getItem(widthKey));
+  return kept > 0 && kept <= 1 ? kept : 1;
+};
+
+// A page of Markdown fills the tab from its left edge, and the divider on its right narrows it when moved.
+function MarkdownPage({ text }: { text: string }) {
+  const row = useRef<HTMLDivElement>(null);
+  const page = useRef<HTMLElement>(null);
+  const divider = useRef<HTMLDivElement>(null);
+  const dragged = useRef({ at: 0, width: 0 });
+
+  // The room the page may take: the row, less the divider that sizes it.
+  const room = () => Math.max(0, row.current!.clientWidth - divider.current!.offsetWidth);
+  // The divider's range and the width it is drawn at are one thing, so paint writes both.
+  const paint = (width: number) => {
+    const painted = Math.min(room(), Math.max(minPageWidth, Math.round(width)));
+    page.current!.style.width = `${painted}px`;
+    divider.current!.setAttribute('aria-valuemin', String(minPageWidth));
+    divider.current!.setAttribute('aria-valuemax', String(room()));
+    divider.current!.setAttribute('aria-valuenow', String(painted));
+  };
+  // Moving the divider is what decides the width, so it is also what keeps it.
+  const resize = (width: number) => {
+    paint(width);
+    localStorage.setItem(widthKey, String(page.current!.offsetWidth / room()));
+  };
+
+  useLayoutEffect(() => {
+    const paintKept = () => paint(keptShare() * room());
+    paintKept();
+    const observer = new ResizeObserver(paintKept);
+    observer.observe(row.current!);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div className="preview-page-row" ref={row}>
+    <article className="preview-markdown" ref={page}>
+      <Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ a: ({ children }) => <span>{children}</span> }}>{text}</Markdown>
+    </article>
+    <div className="preview-divider" ref={divider} role="separator" aria-label="调整页面宽度" aria-orientation="vertical" tabIndex={0}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        dragged.current = { at: event.clientX, width: page.current!.offsetWidth };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          resize(dragged.current.width + event.clientX - dragged.current.at);
+      }}
+      onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        resize(page.current!.offsetWidth + (event.key === 'ArrowRight' ? 20 : -20));
+      }} />
+  </div>;
 }
 
 // The listener goes in before the frame loads, which is when the document asks for what to show.
