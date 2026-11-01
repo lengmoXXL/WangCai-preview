@@ -76,12 +76,13 @@ const show = (tab: Tab, file: FileClick) => {
   void read(tab);
 };
 
-// A sent file goes to the tab of the workspace in front.
+// A sent file goes to the tab of the workspace in front, which is the tab that then comes forward to show it.
 const receive = (file: FileClick) => {
   const key = tabKey(activeWorkspaceId);
   const tab = tabs.get(key);
-  if (tab) return show(tab, file);
-  waiting.set(key, file);
+  if (tab) show(tab, file);
+  else waiting.set(key, file);
+  void context.global.publish('core:show-view', { plugin: identity.id });
 };
 
 function openTab(workspaceId?: string) {
@@ -115,7 +116,7 @@ function Page({ shown }: { shown: Shown }) {
       <span className="preview-name" title={file?.path}>{file?.path.split('/').pop() ?? identity.title}</span>
     </header>
     {shown.error ? <div className="preview-message" role="alert">{shown.error}</div>
-      : !file ? <div className="preview-message">在 files 里按 <kbd>&lt;C-p&gt;</kbd> 把文件送到这里</div>
+      : !file ? <div className="preview-message">在 editor 里按 <kbd>&lt;C-p&gt;</kbd> 把文件送到这里</div>
       : kind === 'other' ? <div className="preview-message">{noPreview}</div>
       : shown.text === undefined ? <div className="preview-message">正在读取…</div>
       : kind === 'image' ? <div className="preview-image"><img src={shown.text} alt={file.path} /></div>

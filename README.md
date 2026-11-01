@@ -3,15 +3,15 @@
 旺财右侧的预览视图：把图片、Markdown 与 HTML 单独渲染出来，文件被 watch 着，
 磁盘上改了画面就跟着变，所以这里没有刷新按钮。
 
-它不铺目录、也不放地址框：别的插件（比如 files）在文件上按 `<C-p>` 就把文件送到这里，标签页随之调到前面。
+它不铺目录、也不放地址框：editor 里按 `<C-p>` 就把当前文件送到这里，标签页随之调到前面。
 
 ## 注册
 
-在 `~/.config/wangcai/init.ts` 的 `tabs` 里把它和 files 一起列上：
+在 `~/.config/wangcai/init.ts` 的 `tabs` 里把它和 editor 一起列上：
 
 ```ts
 tabs: [
-  { id: 'files' },
+  { id: 'editor' },
   { id: 'preview' },
 ],
 ```
