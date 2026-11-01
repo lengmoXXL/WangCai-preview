@@ -60,19 +60,19 @@ test('a previewed page is rendered, and a file it cannot read says so', { timeou
   assert.deepEqual(errors, []);
 }));
 
-test('a page fills the tab from its left edge, and the divider on its right narrows it', { timeout: 180000 }, () => withWindow('wangcai-preview-width', lists, async ({ home, page, errors }) => {
+test('a page fills the tab from its left edge, the divider on the right of the page narrows it, and the tab is what scrolls', { timeout: 180000 }, () => withWindow('wangcai-preview-width', lists, async ({ home, page, errors }) => {
   const written = join(home, 'wide.md');
   writeFileSync(written, `# Wide title\n\n${'body '.repeat(200)}\n`);
   await openPreview(page);
   await send(page, { type: 'file', machine, path: written });
   await panel(page).getByRole('heading', { name: 'Wide title' }).waitFor();
-  const row = panel(page).locator('.preview-page-row');
+  const scroller = panel(page).locator('.preview-scroll');
   const article = panel(page).locator('.preview-markdown');
   const divider = panel(page).locator('.preview-divider');
   // Until the divider moves, the page takes the whole tab, flush with its left edge.
-  await until(async () => Math.abs((await article.boundingBox()).width + (await divider.boundingBox()).width - (await row.boundingBox()).width) < 2);
+  await until(async () => Math.abs((await article.boundingBox()).width + (await divider.boundingBox()).width - (await scroller.evaluate((element) => element.clientWidth))) < 2);
   const startBox = await article.boundingBox();
-  assert.ok(Math.abs(startBox.x - (await row.boundingBox()).x) < 1);
+  assert.ok(Math.abs(startBox.x - (await scroller.boundingBox()).x) < 1);
   // Dragged in, the page is narrower and still starts where it did, and the share it now takes is what is kept.
   const dividerBox = await divider.boundingBox();
   await page.mouse.move(dividerBox.x + dividerBox.width / 2, dividerBox.y + 20);
@@ -81,12 +81,19 @@ test('a page fills the tab from its left edge, and the divider on its right narr
   await page.mouse.up();
   await until(async () => (await article.boundingBox()).width < startBox.width - 150);
   assert.ok(Math.abs((await article.boundingBox()).x - startBox.x) < 1);
-  const share = await page.evaluate(() => {
+  const measured = await page.evaluate(() => {
     const article = document.querySelector('.preview-markdown');
-    const room = document.querySelector('.preview-page-row').clientWidth - document.querySelector('.preview-divider').offsetWidth;
-    return { kept: Number(localStorage.getItem('preview-page-width')), drawn: article.offsetWidth / room };
+    const scroller = document.querySelector('.preview-scroll');
+    const room = scroller.clientWidth - document.querySelector('.preview-divider').offsetWidth;
+    return {
+      kept: Number(localStorage.getItem('preview-page-width')),
+      drawn: article.offsetWidth / room,
+      // The page beside the divider does not scroll itself; the tab does.
+      tabScrolls: scroller.scrollHeight > scroller.clientHeight && article.scrollHeight === article.clientHeight,
+    };
   });
-  assert.ok(Math.abs(share.kept - share.drawn) < 0.01);
+  assert.ok(Math.abs(measured.kept - measured.drawn) < 0.01);
+  assert.ok(measured.tabScrolls);
   assert.deepEqual(errors, []);
 }));
 
