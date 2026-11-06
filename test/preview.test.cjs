@@ -2,7 +2,24 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { writeFileSync } = require('node:fs');
 const { join } = require('node:path');
-const { createWorkspace, until, withWindow } = require('@lengmoxxl/wangcai-testkit');
+const { until, withWindow } = require('@lengmoxxl/wangcai-testkit');
+
+// What a case does to the window's own chrome.
+//
+// The menu that makes a workspace is the space under the rows: the rows have to end above the list's bottom edge, so the
+// click lands on the list rather than on a row.
+const openWorkspaceMenu = async (page) => {
+  const list = page.locator('.workspaces');
+  const box = await list.boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 4, { button: 'right' });
+};
+
+/** Opens a local workspace, and waits for the shell its pane draws a moment after the workspace appears. */
+const createWorkspace = async (page) => {
+  await openWorkspaceMenu(page);
+  await page.locator('#workspace-row-menu').getByRole('menuitem', { name: '新建 本机', exact: true }).click();
+  await page.locator('.terminal-pane.active .xterm-screen').filter({ hasText: /\S/ }).waitFor();
+};
 
 // What a case's window lists: this view, and the workspace whose machine a file is read on.
 const lists = { workspaces: ['terminal-agent'], tabs: ['preview'] };
