@@ -3,7 +3,6 @@
 .preview-head { flex-shrink: 0; display: flex; align-items: center; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--wc-border); }
 .preview-name { overflow: hidden; color: var(--wc-muted); text-overflow: ellipsis; white-space: nowrap; }
 .preview-message { padding: 12px; color: var(--wc-muted); }
-.preview-message kbd { padding: 1px 4px; font: inherit; background: var(--wc-overlay); border: 1px solid var(--wc-border); border-radius: 3px; }
 
 /* A picture is fitted to the pane it was given, never blown past its own size. */
 .preview-image { flex: 1; display: grid; place-items: center; min-height: 0; padding: 12px; overflow: auto; }

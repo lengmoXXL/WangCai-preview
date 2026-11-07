@@ -116,7 +116,7 @@ function Page({ shown }: { shown: Shown }) {
       <span className="preview-name" title={file?.path}>{file?.path.split('/').pop() ?? identity.title}</span>
     </header>
     {shown.error ? <div className="preview-message" role="alert">{shown.error}</div>
-      : !file ? <div className="preview-message">在 editor 里按 <kbd>&lt;C-p&gt;</kbd> 把文件送到这里</div>
+      : !file ? <div className="preview-message">在 editor 里点「预览」把文件送到这里</div>
       : kind === 'other' ? <div className="preview-message">{noPreview}</div>
       : shown.text === undefined ? <div className="preview-message">正在读取…</div>
       : kind === 'image' ? <div className="preview-image"><img src={shown.text} alt={file.path} /></div>
