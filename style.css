@@ -1,7 +1,17 @@
-/* The preview tab: the name of the file on top, and whatever that file is underneath. */
+/* The preview tab: the two steps through what it has shown, the path of the file on show, and that file underneath. */
 .preview { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--wc-foreground); }
-.preview-head { flex-shrink: 0; display: flex; align-items: center; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--wc-border); }
-.preview-name { overflow: hidden; color: var(--wc-muted); text-overflow: ellipsis; white-space: nowrap; }
+.preview-head { flex-shrink: 0; display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 6px; border-bottom: 1px solid var(--wc-border); }
+/* The two steps share one look with the editor's icon buttons: a muted arrow that turns into the foreground colour on an
+   overlay while the pointer is on it, takes the accent colour as an outline with the keyboard, and fades where there is
+   nowhere to step. */
+.preview-icon { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; padding: 4px; color: var(--wc-muted); background: transparent; border: 0; border-radius: 4px; cursor: pointer; }
+.preview-icon:hover:not(:disabled) { color: var(--wc-foreground); background: var(--wc-overlay); }
+.preview-icon:disabled { opacity: 0.35; cursor: default; }
+.preview-icon:focus-visible { outline: 2px solid var(--wc-accent); outline-offset: -2px; }
+.preview-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+/* The path of the file on show: a box to read and copy rather than write into, so a click into it only shows that it holds the focus. */
+.preview-path { flex: 1; min-width: 8ch; height: 24px; padding: 0 6px; font: inherit; color: var(--wc-muted); background: transparent; border: 1px solid transparent; border-radius: 4px; text-overflow: ellipsis; }
+.preview-path:focus { color: var(--wc-foreground); background: var(--wc-overlay); outline: none; }
 .preview-message { padding: 12px; color: var(--wc-muted); }
 
 /* A picture is fitted to the pane it was given, never blown past its own size. */
@@ -25,6 +35,8 @@
 .preview-markdown table { border-collapse: collapse; }
 .preview-markdown th, .preview-markdown td { padding: 4px 8px; border: 1px solid var(--wc-border); }
 .preview-markdown img { max-width: 100%; }
+/* A link is the only thing on the page that answers a click, so it is the only one drawn as a link. */
+.preview-markdown a { color: var(--wc-accent); text-decoration: underline; cursor: pointer; }
 
 /* The divider that sizes the page: a hairline in the border colour, so the page's edge is always visible, which takes
    the accent colour under the pointer or the keyboard. */

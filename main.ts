@@ -84,9 +84,15 @@ export function activate(context: MainContext) {
     });
   });
 
+  // Where a link in a page lands: whether the path names a directory, which decides who opens it, or null when
+  // nothing there is named.
+  const stopStat = context.ui.handle('stat', ({ machine, path }: { machine: FileClick['machine']; path: string }) =>
+    withConnection(machine, async (connection) => (await connection.fs.stat(path))?.isDirectory ?? null));
+
   return async () => {
     stopRead();
     stopWatch();
+    stopStat();
     for (const controller of pending) controller.abort();
     for (const holder of [...watchers.keys()]) giveUp(holder);
     for (const connection of connections) connection.disconnect();

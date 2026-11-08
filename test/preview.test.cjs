@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { writeFileSync } = require('node:fs');
+const { mkdirSync, writeFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { until, withWindow } = require('@lengmoxxl/wangcai-testkit');
 
@@ -49,11 +49,11 @@ test('a previewed picture is drawn as it is, and read again when the file change
   await send(page, { type: 'file', machine, path: picture });
   const image = panel(page).locator('.preview-image img');
   await image.waitFor();
-  assert.equal(await panel(page).locator('.preview-name').innerText(), 'photo.png');
   assert.match(await image.getAttribute('src'), /^data:image\/png;base64,/);
-  // The tab carries no address box and no refresh button.
-  assert.equal(await panel(page).getByRole('textbox').count(), 0);
-  assert.equal(await panel(page).getByRole('button').count(), 0);
+  // The header reads the path of the file on show, and offers no step while the tab has one file in its history.
+  assert.equal(await panel(page).locator('.preview-path').inputValue(), picture);
+  assert.equal(await panel(page).getByRole('button', { name: '后退' }).isDisabled(), true);
+  assert.equal(await panel(page).getByRole('button', { name: '前进' }).isDisabled(), true);
   // A file that changes on disk is read again without anyone asking: the bytes are what the page holds, so a new
   // file is a new data URL.
   const before = await image.getAttribute('src');
@@ -119,18 +119,18 @@ test('a window with two workspaces keeps a preview of its own in each', { timeou
   const second = join(home, 'second.md');
   writeFileSync(first, '# First page\n\nfirst-body\n');
   writeFileSync(second, '# Second page\n\nsecond-body\n');
-  const names = () => panel(page).locator('.preview-name').allInnerTexts();
-  // A workspace of its own, the file sent in the order the sender uses (the file first, then the tab), and the name
+  const paths = () => panel(page).locator('.preview-path').evaluateAll((boxes) => boxes.map((box) => box.value));
+  // A workspace of its own, the file sent in the order the sender uses (the file first, then the tab), and the path
   // that tab ends up showing.
-  const openWith = async (path, name) => {
+  const openWith = async (path) => {
     await createWorkspace(page);
     await send(page, { type: 'file', machine, path });
     await showView(page);
-    await until(async () => (await names()).includes(name));
+    await until(async () => (await paths()).includes(path));
   };
-  await openWith(first, 'first.md');
-  await openWith(second, 'second.md');
-  assert.deepEqual(await names(), ['first.md', 'second.md']);
+  await openWith(first);
+  await openWith(second);
+  assert.deepEqual(await paths(), [first, second]);
   // A file that changes is read again by the tab showing it, whichever workspace that tab belongs to. The panels are
   // read as text, since the one in the workspace behind is hidden and has no place in the accessibility tree.
   const pages = () => panel(page).locator('.preview-markdown').allInnerTexts();
@@ -138,7 +138,7 @@ test('a window with two workspaces keeps a preview of its own in each', { timeou
   await until(async () => (await pages()).some((text) => text.includes('First page again')));
   // And closing one tab leaves the other watching.
   await page.getByRole('button', { name: '关闭 预览', exact: true }).click();
-  await until(async () => (await names()).length === 1);
+  await until(async () => (await paths()).length === 1);
   writeFileSync(first, '# First page a third time\n\nfirst-body\n');
   await until(async () => (await pages()).some((text) => text.includes('First page a third time')));
   assert.deepEqual(errors, []);
@@ -153,5 +153,60 @@ test('a page of its own is shown again when the file changes', { timeout: 180000
   await frame.getByRole('heading', { name: 'First title' }).waitFor();
   writeFileSync(html, '<!doctype html><html><body><h1>Second title</h1></body></html>');
   await frame.getByRole('heading', { name: 'Second title' }).waitFor();
+  assert.deepEqual(errors, []);
+}));
+
+// A click in a page is the tab's to answer: a path it draws is shown here, and a path it does not draw is handed to the
+// plugins that do. A click on an address asks the system for a browser, which is why no case here makes one.
+test('a link to a file this view draws opens it here, and the two steps walk back out of it', { timeout: 180000 }, () => withWindow('wangcai-preview-links', lists, async ({ home, page, errors }) => {
+  const directory = join(home, 'notes');
+  const first = join(directory, 'first.md');
+  const second = join(directory, 'second.md');
+  mkdirSync(directory);
+  writeFileSync(first, '# First title\n\n[next](second.md)\n\n[place](#first-title)\n');
+  writeFileSync(second, '# Second title\n\nbody\n');
+  await openPreview(page);
+  await send(page, { type: 'file', machine, path: first });
+  await panel(page).getByRole('heading', { name: 'First title' }).waitFor();
+  const path = () => panel(page).locator('.preview-path').inputValue();
+  // A place inside the page itself is nowhere else to go.
+  await panel(page).getByRole('link', { name: 'place' }).click();
+  assert.equal(await path(), first);
+  // A relative path is read against the file the link was written in, and drawn here rather than elsewhere.
+  await panel(page).getByRole('link', { name: 'next' }).click();
+  await panel(page).getByRole('heading', { name: 'Second title' }).waitFor();
+  assert.equal(await path(), second);
+  // The steps walk the history the clicks made, and each one is the file as it stands now.
+  await panel(page).getByRole('button', { name: '后退' }).click();
+  await panel(page).getByRole('heading', { name: 'First title' }).waitFor();
+  assert.equal(await path(), first);
+  await panel(page).getByRole('button', { name: '前进' }).click();
+  await panel(page).getByRole('heading', { name: 'Second title' }).waitFor();
+  assert.equal(await path(), second);
+  assert.deepEqual(errors, []);
+}));
+
+test('a link this view does not draw is handed to the plugin that does', { timeout: 180000 }, () => withWindow('wangcai-preview-links-out', lists, async ({ home, page, errors }) => {
+  const written = join(home, 'out.md');
+  mkdirSync(join(home, 'sub'));
+  writeFileSync(join(home, 'code.ts'), 'export {};\n');
+  writeFileSync(written, '# Out title\n\n[folder](sub/)\n\n[code](./code.ts)\n');
+  await openPreview(page);
+  // What the plugins that draw a directory and a source file are told, in the order the clicks tell them.
+  await page.evaluate(() => {
+    window.clicks = [];
+    window.wangcai.subscribe('onclick', (file) => window.clicks.push({ type: file.type, path: file.path }));
+  });
+  await send(page, { type: 'file', machine, path: written });
+  await panel(page).getByRole('heading', { name: 'Out title' }).waitFor();
+  await panel(page).getByRole('link', { name: 'folder' }).click();
+  await panel(page).getByRole('link', { name: 'code' }).click();
+  await until(async () => (await page.evaluate(() => window.clicks)).length === 2);
+  assert.deepEqual(await page.evaluate(() => window.clicks), [
+    { type: 'directory', path: join(home, 'sub') },
+    { type: 'file', path: join(home, 'code.ts') },
+  ]);
+  // The page stays where it was: neither click was this view's to draw.
+  assert.equal(await panel(page).locator('.preview-path').inputValue(), written);
   assert.deepEqual(errors, []);
 }));
